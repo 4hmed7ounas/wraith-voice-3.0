@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(test:*)",
+      "WebFetch(domain:docs.pipecat.ai)",
+      "WebSearch",
+      "WebFetch(domain:github.com)",
+      "Bash(pip search:*)",
+      "Bash(pip index versions:*)",
+      "Bash(python:*)",
+      "Bash(.venv/Scripts/python:*)",
+      "WebFetch(domain:reference-server.pipecat.ai)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

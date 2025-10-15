@@ -1,0 +1,2 @@
+pipecat-ai[openai,deepgram,cartesia,silero]==0.0.87
+pyaudio>=0.2.14

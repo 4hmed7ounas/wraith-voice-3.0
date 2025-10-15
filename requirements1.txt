@@ -1,0 +1,3 @@
+# Daily.co does NOT support Windows - use Deepgram version instead
+# See requirements-deepgram.txt for Windows-compatible setup
+pipecat-ai[cartesia,google,silero,runner]==0.0.87
