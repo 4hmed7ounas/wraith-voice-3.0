@@ -13,6 +13,7 @@
 
 import os
 import asyncio
+import json
 from dotenv import load_dotenv
 from loguru import logger
 from groq import AsyncGroq
@@ -41,6 +42,28 @@ class GroqProcessor(FrameProcessor):
         self.client = AsyncGroq(api_key=api_key)
         self.model = model
 
+        # Define available functions for function calling
+        self.tools = [
+            {
+                "type": "function",
+                "function": {
+                    "name": "movement",
+                    "description": "Controls the robot's movement in a specified direction. Use this when the user asks to move forward, backward, left, or right.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "direction": {
+                                "type": "string",
+                                "enum": ["forward", "backward", "left", "right"],
+                                "description": "The direction to move the robot"
+                            }
+                        },
+                        "required": ["direction"]
+                    }
+                }
+            }
+        ]
+
         # Chat history with WRAITH system prompt
         self.messages = [
             {
@@ -56,6 +79,7 @@ Your capabilities include:
 - Location assistance for disoriented individuals
 - Dual-mode operation: manual teleoperation and fully autonomous functioning
 - Remote control through a dedicated mobile application
+- Movement control via voice commands (forward, backward, left, right)
 - You represent technological excellence from Pakistan, developed at FAST NUCES
 
 You are currently operating in voice interaction mode, providing professional assistance through conversation.
@@ -72,7 +96,8 @@ CRITICAL RESPONSE GUIDELINES:
 - Each response should add NEW information, not rehash previous statements
 - Listen to context: if the user already knows something, don't repeat it
 - Be natural and human-like in conversation tone
-- Acknowledge when you're uncertain rather than inventing details"""
+- Acknowledge when you're uncertain rather than inventing details
+- When the user asks you to move, use the movement function to control the robot"""
             }
         ]
 
@@ -80,7 +105,15 @@ CRITICAL RESPONSE GUIDELINES:
         self.last_transcription_text = ""
         self.transcription_task = None
 
-        logger.info(f"✅ Groq {model} initialized")
+        logger.info(f"✅ Groq {model} initialized with movement function")
+
+    def movement(self, direction: str) -> str:
+        """Handle movement commands"""
+        logger.info(f"🚀 MOVEMENT FUNCTION CALLED: Moving {direction.upper()}")
+        print(f"\n{'='*50}")
+        print(f"🤖 ROBOT MOVING: {direction.upper()}")
+        print(f"{'='*50}\n")
+        return f"Moving {direction}"
 
     async def _process_complete_transcription(self, user_text: str):
         """Process a complete transcription after ensuring it's not a fragment"""
@@ -88,19 +121,64 @@ CRITICAL RESPONSE GUIDELINES:
             # Add user message to history
             self.messages.append({"role": "user", "content": user_text})
 
-            # Call Groq API
+            # Call Groq API with function calling
             response = await self.client.chat.completions.create(
                 model=self.model,
                 messages=self.messages,
                 temperature=0.7,
                 max_tokens=150,
+                tools=self.tools,
+                tool_choice="auto",
             )
 
-            bot_text = response.choices[0].message.content
-            logger.info(f"🤖 Bot: {bot_text}")
+            response_message = response.choices[0].message
+            tool_calls = response_message.tool_calls
 
-            # Add assistant response to history
-            self.messages.append({"role": "assistant", "content": bot_text})
+            # Handle function calls
+            if tool_calls:
+                # Add the assistant's response with tool calls to history
+                self.messages.append(response_message)
+
+                # Process each tool call
+                for tool_call in tool_calls:
+                    function_name = tool_call.function.name
+                    function_args = json.loads(tool_call.function.arguments)
+
+                    logger.info(f"🔧 Function call: {function_name}({function_args})")
+
+                    # Execute the function
+                    if function_name == "movement":
+                        function_response = self.movement(function_args["direction"])
+
+                        # Add function response to history
+                        self.messages.append({
+                            "role": "tool",
+                            "tool_call_id": tool_call.id,
+                            "name": function_name,
+                            "content": function_response,
+                        })
+
+                # Get final response from the model after function execution
+                second_response = await self.client.chat.completions.create(
+                    model=self.model,
+                    messages=self.messages,
+                    temperature=0.7,
+                    max_tokens=150,
+                )
+
+                bot_text = second_response.choices[0].message.content
+                logger.info(f"🤖 Bot: {bot_text}")
+
+                # Add final assistant response to history
+                self.messages.append({"role": "assistant", "content": bot_text})
+
+            else:
+                # No function call, regular response
+                bot_text = response_message.content
+                logger.info(f"🤖 Bot: {bot_text}")
+
+                # Add assistant response to history
+                self.messages.append({"role": "assistant", "content": bot_text})
 
             # Keep history manageable (last 10 messages + system)
             if len(self.messages) > 21:
