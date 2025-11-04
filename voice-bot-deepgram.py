@@ -252,7 +252,7 @@ FUNCTION CALLING INSTRUCTIONS:
             return f"Moved {direction} for {duration} seconds"
 
         except httpx.TimeoutException:
-            logger.error(f"⏱️ Robot connection timeout")
+            logger.error("⏱️ Robot connection timeout")
             return "Robot connection timeout"
         except Exception as e:
             logger.error(f"❌ Movement error: {e}")
@@ -505,7 +505,7 @@ async def main():
     stt = DeepgramSTTService(
         api_key=os.getenv("DEEPGRAM_API_KEY"),
         model="nova-2",
-        language="hi",
+        language="en",
         # Balanced endpointing for responsive yet accurate transcription
         params={
             "endpointing": 300,  # Wait 300ms before finalizing (good balance)
